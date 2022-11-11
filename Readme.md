@@ -1,3 +1,3 @@
 ## My first Streamlit project 
 
-[You can reach the application here.](https://github.com/Aleks0420/strimlitProject/blob/master/main.py)
+[You can reach the application here.](https://aleks0420-strimlitproject-main-la0hm7.streamlit.app)
