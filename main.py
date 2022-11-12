@@ -6,12 +6,16 @@ import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
+import plotly.express as px                             # графические обьекты со встроенными функциями
+import plotly.graph_objects as go                       # графические обьекты более низкоуровневые
+
 
 # созаем контейнер заголовка, данных, предсказания и обучение модели
 header = st.container()
 dataset = st.container()
 features = st.container()
 model_training = st.container()
+interactive = st.container()                    # интерактивный контейнер
 
 
 # изменим фон приложения для улучшения внешнего вида
@@ -27,6 +31,8 @@ st.markdown(
 )
 
 
+background_color = '#F5F5F5'                                    # цвет фона
+
 
 # поместим код который мы хотим запускать один раз в функцию получения данных
 # и кешируем его с помощью декоратора
@@ -36,9 +42,6 @@ def get_data(filename):
     """функция получения данных из файла"""
     taxi_data = pd.read_csv(filename)  # загрузим данные
     return taxi_data
-
-
-
 
 
 # заполним контейнеры
@@ -54,7 +57,7 @@ with dataset:
     # st.write(taxi_data.head())                         # и отобразим в контейнере голову таблицы
 
     st.subheader("Этот подзаголовок для гистограммы")
-    pulocation_dist = pd.DataFrame(taxi_data["pickup_latitude"].value_counts())      # укажем сколько раз и с какого места забирали пассажира
+    pulocation_dist = pd.DataFrame(taxi_data["start_trip_area"].value_counts())#.head(50))      # укажем сколько раз и с какого места забирали пассажира
     st.bar_chart(pulocation_dist)                                               # построим гистограмму
 
 
@@ -93,8 +96,6 @@ with model_training:
                                        'dropoff_latitude')
 
 
-
-
     # добавим модель случайного леса
 
     if n_estimators == "No limits":
@@ -122,3 +123,73 @@ with model_training:
     # напишем абсолютную ошибку дадим ей занчение и прогноз
     disp_col.write(r2_score(y, prediction))
 
+
+# работа с таблицей
+with interactive:
+    st.title('Более пристальный взгляд на данные')
+    # создаем таблицу передав заголовок (шапка таблицы) и ячейки (тело таблицы)
+    fig = go.Figure(data=go.Table(
+        columnwidth=[3, 1, 1],
+        header=dict(values=list(taxi_data[['pickup_datetime', 'end_trip_area', 'total_amount']].columns),
+                    fill_color='#FD8E72',
+                    align='left'),
+        cells=dict(values=[taxi_data.pickup_datetime, taxi_data.end_trip_area, taxi_data.total_amount],
+                   fill_color='#E5ECF6',
+                   align='left')))
+
+
+    fig.update_layout(margin=dict(l=5, r=5, b=10, t=10),
+                      paper_bgcolor=background_color)# обновить макет уменьшив поля
+    st.write(fig)                                           # отобразим обьект
+
+
+
+    # круговые диаграммы
+    # столбец ввода и стобец круговой диаграммы
+    input_col, pie_col = st.columns(2)
+    pulocation_dist = pulocation_dist.reset_index()
+    pulocation_dist.columns = ["start_trip_area", 'count']
+    # print(pulocation_dist)
+
+    top_n = input_col.text_input('Какое количество локаций хотим увидеть', 8)
+    top_n = int(top_n)
+
+    pulocation_dist= pulocation_dist.head(top_n)
+    # изобразим на круговой диаграмме
+    fig = px.pie(pulocation_dist, values='count', names='start_trip_area', hover_name="start_trip_area")
+    # включим обновление макета отключим боковые индикаторы диаграммы, размер, изменим поля
+    fig.update_layout(showlegend=False,
+                      width=320,
+                      height=320,
+                      margin=dict(l=1, r=1, b=1, t=1),
+                      paper_bgcolor=background_color,
+                      font=dict(color='#383635', size=15))
+    pie_col.write(fig)
+
+
+    # линейные диаграммы
+    line_chart_data = taxi_data.copy()                                  # скопируем данные
+    # извлечем информацию из колонки с датой о часах
+    line_chart_data['pickup_datetime'] = pd.to_datetime(line_chart_data['pickup_datetime'])
+    line_chart_data['pickup_hour'] = line_chart_data['pickup_datetime'].dt.hour
+
+    # создадим перекрестную вкладку: две колонки одна колонка место посадки вторая час
+    # считаем сколько раз встретилось пересечение и заносим в перекрестную таблицу
+    hour_cross_tab = pd.crosstab( line_chart_data['pickup_hour'], line_chart_data['start_trip_area'])
+    # print(hour_cross_tab)
+
+    # отобразим все на линейной диаграмме
+    fig = px.line(hour_cross_tab)
+    # настроим параметры отображения уберем легенду, изменим размер, поля, цвет фона и цвет шрифта
+    fig.update_layout(showlegend=False,
+                      width=800,
+                      height=500,
+                      margin=dict(l=1, r=1, b=1, t=1),
+                      paper_bgcolor=background_color,
+                      font=dict(color='#383635', size=15))
+
+    # отрадактируем ось со временем чтоб было видно все часы сделав оси категориальными
+    fig.update_xaxes(type='category')
+
+
+    st.write(fig)
